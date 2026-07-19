@@ -8,6 +8,7 @@ const path = require("path");
 const app = express();
 
 const productRoutes = require("./routes/product.routes");
+const categoryRoutes = require("./routes/category.routes");
 
 
 
@@ -20,8 +21,8 @@ app.use(
 );
 
 app.use("/api/auth", authRoutes);
-
 app.use("/api/products", productRoutes)
+app.use("/api/categories", categoryRoutes);
 
 
 app.get("/", (req, res) => {
