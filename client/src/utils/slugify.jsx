@@ -1,9 +1,9 @@
-function Spinner() {
-  return (
-    <div className="flex justify-center py-8">
-      <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-300 border-t-indigo-600" />
-    </div>
-  );
+export default function slugify(value = "") {
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
-
-export default Spinner;

@@ -4,6 +4,7 @@ import Input from "../ui/Input";
 import Button from "../ui/Button";
 
 import slugify from "../../utils/slugify";
+import { getCategories } from "../../services/category.service";
 
 function ProductForm({ onSubmit, onCancel, loading = false }) {
   const [formData, setFormData] = useState({
@@ -12,10 +13,46 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
     description: "",
     price: "",
     stock: "",
+    categoryId: "",
     image: null,
   });
 
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
+
+  useEffect(() => {
+    async function loadCategories() {
+      try {
+        setCategoriesLoading(true);
+        setCategoriesError("");
+
+        const data = await getCategories();
+
+        setCategories(
+          data.filter((category) => category.isActive)
+        );
+      } catch (error) {
+        console.error(error);
+        setCategoriesError(
+          "Impossible de charger les catégories."
+        );
+      } finally {
+        setCategoriesLoading(false);
+      }
+    }
+
+    loadCategories();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
 
   function handleChange(event) {
     const { name, value, files } = event.target;
@@ -63,6 +100,7 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
     payload.append("description", formData.description);
     payload.append("price", formData.price);
     payload.append("stock", formData.stock);
+    payload.append("categoryId", formData.categoryId);
 
     if (formData.image) {
       payload.append("image", formData.image);
@@ -70,14 +108,6 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
 
     onSubmit(payload);
   }
-
-  useEffect(() => {
-    return () => {
-      if (imagePreview) {
-        URL.revokeObjectURL(imagePreview);
-      }
-    };
-  }, [imagePreview]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -97,6 +127,54 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
         required
         className="bg-slate-100 text-slate-500"
       />
+
+      <div className="space-y-2">
+        <label
+          htmlFor="categoryId"
+          className="block text-sm font-medium text-slate-700"
+        >
+          Catégorie
+        </label>
+
+        <select
+          id="categoryId"
+          name="categoryId"
+          value={formData.categoryId}
+          onChange={handleChange}
+          required
+          disabled={categoriesLoading}
+          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none transition focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:bg-slate-100"
+        >
+          <option value="">
+            {categoriesLoading
+              ? "Chargement des catégories..."
+              : "Sélectionner une catégorie"}
+          </option>
+
+          {categories.map((category) => (
+            <option
+              key={category.id}
+              value={category.id}
+            >
+              {category.name}
+            </option>
+          ))}
+        </select>
+
+        {categoriesError && (
+          <p className="text-sm text-red-600">
+            {categoriesError}
+          </p>
+        )}
+
+        {!categoriesLoading &&
+          !categoriesError &&
+          categories.length === 0 && (
+            <p className="text-sm text-amber-600">
+              Aucune catégorie active disponible.
+            </p>
+          )}
+      </div>
 
       <div className="space-y-2">
         <label
@@ -183,7 +261,14 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
           Annuler
         </Button>
 
-        <Button type="submit" disabled={loading}>
+        <Button
+          type="submit"
+          disabled={
+            loading ||
+            categoriesLoading ||
+            categories.length === 0
+          }
+        >
           {loading ? "Création..." : "Créer"}
         </Button>
       </div>
