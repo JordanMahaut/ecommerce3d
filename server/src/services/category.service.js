@@ -3,33 +3,27 @@ const prisma = require("../lib/prisma");
 async function getCategories() {
   return prisma.category.findMany({
     orderBy: {
-      createdAt: "desc",
+      name: "asc",
+    },
+    include: {
+      _count: {
+        select: {
+          products: true,
+        },
+      },
     },
   });
 }
 
 async function getCategoryBySlug(slug) {
-  const category = await prisma.category.findUnique({
+  return prisma.category.findUnique({
     where: {
       slug,
     },
     include: {
-      products: {
-        where: {
-          isActive: true,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      },
+      products: true,
     },
   });
-
-  if (!category) {
-    throw new Error("Catégorie introuvable.");
-  }
-
-  return category;
 }
 
 async function createCategory(data) {
@@ -41,7 +35,7 @@ async function createCategory(data) {
 async function updateCategory(id, data) {
   return prisma.category.update({
     where: {
-      id: Number(id),
+      id,
     },
     data,
   });
@@ -50,7 +44,7 @@ async function updateCategory(id, data) {
 async function deleteCategory(id) {
   return prisma.category.delete({
     where: {
-      id: Number(id),
+      id,
     },
   });
 }
