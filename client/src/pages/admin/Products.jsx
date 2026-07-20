@@ -42,10 +42,7 @@ function Products() {
       setSaving(true);
 
       if (selectedProduct) {
-        await productService.updateProduct(
-          selectedProduct.id,
-          data,
-        );
+        await productService.updateProduct(selectedProduct.id, data);
       } else {
         await productService.createProduct(data);
       }
@@ -76,6 +73,26 @@ function Products() {
     }
   }
 
+  async function handleDelete(product) {
+    const confirmed = window.confirm(
+      `Supprimer "${product.name}" ? Cette action est irréversible.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await productService.deleteProduct(product.id);
+
+      await loadProducts();
+    } catch (error) {
+      console.error("Erreur suppression :", error.response?.data || error);
+
+      alert("Impossible de supprimer le produit.");
+    }
+  }
+
   function handleCloseModal() {
     if (saving) return;
 
@@ -88,22 +105,16 @@ function Products() {
   }, []);
 
   const filteredProducts = products.filter((product) =>
-    product.name
-      .toLowerCase()
-      .includes(search.trim().toLowerCase()),
+    product.name.toLowerCase().includes(search.trim().toLowerCase()),
   );
 
   return (
     <section className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">
-            Produits
-          </h1>
+          <h1 className="text-3xl font-bold">Produits</h1>
 
-          <p className="mt-1 text-slate-500">
-            Gérez votre catalogue.
-          </p>
+          <p className="mt-1 text-slate-500">Gérez votre catalogue.</p>
         </div>
 
         <Button
@@ -139,17 +150,13 @@ function Products() {
             setSelectedProduct(product);
             setOpen(true);
           }}
-          onDelete={(product) => console.log(product)}
+          onDelete={handleDelete}
         />
       )}
 
       <Modal
         open={open}
-        title={
-          selectedProduct
-            ? "Modifier le produit"
-            : "Ajouter un produit"
-        }
+        title={selectedProduct ? "Modifier le produit" : "Ajouter un produit"}
         onClose={handleCloseModal}
       >
         <ProductForm

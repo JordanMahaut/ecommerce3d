@@ -17,5 +17,6 @@ export async function updateProduct(id, data) {
 
 export async function deleteProduct(id) {
   const response = await api.delete(`/products/${id}`);
+
   return response.data;
 }
