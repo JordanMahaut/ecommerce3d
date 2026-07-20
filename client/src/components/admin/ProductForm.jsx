@@ -6,21 +6,31 @@ import Button from "../ui/Button";
 import slugify from "../../utils/slugify";
 import { getCategories } from "../../services/category.service";
 
-function ProductForm({ onSubmit, onCancel, loading = false }) {
-  const [formData, setFormData] = useState({
-    name: "",
-    slug: "",
-    description: "",
-    price: "",
-    stock: "",
-    categoryId: "",
-    image: null,
-  });
+const emptyForm = {
+  name: "",
+  slug: "",
+  description: "",
+  price: "",
+  stock: "",
+  categoryId: "",
+  image: null,
+  featured: false,
+  isActive: true,
+};
 
+function ProductForm({
+  product = null,
+  onSubmit,
+  onCancel,
+  loading = false,
+}) {
+  const [formData, setFormData] = useState(emptyForm);
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
+
+  const isEditing = Boolean(product);
 
   useEffect(() => {
     async function loadCategories() {
@@ -31,31 +41,59 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
         const data = await getCategories();
 
         setCategories(
-          data.filter((category) => category.isActive)
+          data.filter(
+            (category) =>
+              category.isActive ||
+              category.id === product?.categoryId,
+          ),
         );
       } catch (error) {
         console.error(error);
-        setCategoriesError(
-          "Impossible de charger les catégories."
-        );
+        setCategoriesError("Impossible de charger les catégories.");
       } finally {
         setCategoriesLoading(false);
       }
     }
 
     loadCategories();
-  }, []);
+  }, [product]);
+
+  useEffect(() => {
+    setFormData(
+      product
+        ? {
+            name: product.name ?? "",
+            slug: product.slug ?? "",
+            description: product.description ?? "",
+            price: product.price != null
+              ? String(product.price)
+              : "",
+            stock: product.stock != null
+              ? String(product.stock)
+              : "",
+            categoryId: product.categoryId != null
+              ? String(product.categoryId)
+              : "",
+            image: null,
+            featured: Boolean(product.featured),
+            isActive: product.isActive ?? true,
+          }
+        : emptyForm,
+    );
+
+    setImagePreview(product?.image ?? null);
+  }, [product]);
 
   useEffect(() => {
     return () => {
-      if (imagePreview) {
+      if (imagePreview?.startsWith("blob:")) {
         URL.revokeObjectURL(imagePreview);
       }
     };
   }, [imagePreview]);
 
   function handleChange(event) {
-    const { name, value, files } = event.target;
+    const { name, value, files, type, checked } = event.target;
 
     if (name === "image") {
       const file = files?.[0] ?? null;
@@ -66,11 +104,13 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
       }));
 
       setImagePreview((currentPreview) => {
-        if (currentPreview) {
+        if (currentPreview?.startsWith("blob:")) {
           URL.revokeObjectURL(currentPreview);
         }
 
-        return file ? URL.createObjectURL(file) : null;
+        return file
+          ? URL.createObjectURL(file)
+          : product?.image ?? null;
       });
 
       return;
@@ -79,7 +119,7 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
     setFormData((current) => {
       const updated = {
         ...current,
-        [name]: value,
+        [name]: type === "checkbox" ? checked : value,
       };
 
       if (name === "name") {
@@ -90,23 +130,25 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
     });
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
 
     const payload = new FormData();
 
-    payload.append("name", formData.name);
-    payload.append("slug", formData.slug);
-    payload.append("description", formData.description);
+    payload.append("name", formData.name.trim());
+    payload.append("slug", String(formData.slug).trim());
+    payload.append("description", formData.description.trim());
     payload.append("price", formData.price);
     payload.append("stock", formData.stock);
     payload.append("categoryId", formData.categoryId);
+    payload.append("featured", String(formData.featured));
+    payload.append("isActive", String(formData.isActive));
 
     if (formData.image) {
       payload.append("image", formData.image);
     }
 
-    onSubmit(payload);
+    await onSubmit(payload);
   }
 
   return (
@@ -152,10 +194,7 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
           </option>
 
           {categories.map((category) => (
-            <option
-              key={category.id}
-              value={category.id}
-            >
+            <option key={category.id} value={category.id}>
               {category.name}
             </option>
           ))}
@@ -166,14 +205,6 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
             {categoriesError}
           </p>
         )}
-
-        {!categoriesLoading &&
-          !categoriesError &&
-          categories.length === 0 && (
-            <p className="text-sm text-amber-600">
-              Aucune catégorie active disponible.
-            </p>
-          )}
       </div>
 
       <div className="space-y-2">
@@ -219,6 +250,34 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
         />
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="flex items-center gap-3 rounded-xl border border-slate-300 p-4">
+          <input
+            type="checkbox"
+            name="featured"
+            checked={formData.featured}
+            onChange={handleChange}
+          />
+
+          <span className="text-sm font-medium text-slate-700">
+            Produit mis en avant
+          </span>
+        </label>
+
+        <label className="flex items-center gap-3 rounded-xl border border-slate-300 p-4">
+          <input
+            type="checkbox"
+            name="isActive"
+            checked={formData.isActive}
+            onChange={handleChange}
+          />
+
+          <span className="text-sm font-medium text-slate-700">
+            Produit actif
+          </span>
+        </label>
+      </div>
+
       <div className="space-y-2">
         <label
           htmlFor="image"
@@ -233,12 +292,14 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
           type="file"
           accept="image/jpeg,image/png,image/webp"
           onChange={handleChange}
-          className="block w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-700"
+          className="block w-full cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white"
         />
 
-        <p className="text-xs text-slate-500">
-          Formats acceptés : JPG, PNG et WebP. Taille maximale : 5 Mo.
-        </p>
+        {isEditing && (
+          <p className="text-xs text-slate-500">
+            Laissez ce champ vide pour conserver l’image actuelle.
+          </p>
+        )}
 
         {imagePreview && (
           <div className="overflow-hidden rounded-xl border border-slate-200">
@@ -251,7 +312,7 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
         )}
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
+      <div className="sticky bottom-0 -mx-6 flex justify-end gap-3 border-t border-slate-200 bg-white px-6 py-4">
         <Button
           type="button"
           variant="secondary"
@@ -261,15 +322,14 @@ function ProductForm({ onSubmit, onCancel, loading = false }) {
           Annuler
         </Button>
 
-        <Button
-          type="submit"
-          disabled={
-            loading ||
-            categoriesLoading ||
-            categories.length === 0
-          }
-        >
-          {loading ? "Création..." : "Créer"}
+        <Button type="submit" disabled={loading}>
+          {loading
+            ? isEditing
+              ? "Modification..."
+              : "Création..."
+            : isEditing
+              ? "Modifier"
+              : "Créer"}
         </Button>
       </div>
     </form>

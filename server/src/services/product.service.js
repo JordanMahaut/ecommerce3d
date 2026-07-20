@@ -9,7 +9,7 @@ async function getProducts() {
       category: true,
     },
     orderBy: {
-      createdAt: "desc",
+      id: "desc",
     },
   });
 }
@@ -33,7 +33,10 @@ async function getProductBySlug(slug) {
 
 async function createProduct(data) {
   return prisma.product.create({
-    data,
+    data: {
+      ...data,
+      categoryId: Number(data.categoryId),
+    },
     include: {
       category: true,
     },
@@ -41,11 +44,19 @@ async function createProduct(data) {
 }
 
 async function updateProduct(id, data) {
+  const normalizedData = {
+    ...data,
+  };
+
+  if (data.categoryId !== undefined) {
+    normalizedData.categoryId = Number(data.categoryId);
+  }
+
   return prisma.product.update({
     where: {
       id: Number(id),
     },
-    data,
+    data: normalizedData,
     include: {
       category: true,
     },

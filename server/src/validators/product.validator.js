@@ -45,10 +45,8 @@ const productSchema = z.object({
 
   categoryId: z.coerce
     .number()
-    .int()
-    .positive()
-    .optional()
-    .nullable(),
+    .int("La catégorie est invalide")
+    .positive("La catégorie est obligatoire"),
 });
 
 const updateProductSchema = productSchema.partial();

@@ -18,32 +18,69 @@ function Products() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   async function loadProducts() {
     try {
+      setLoading(true);
+
       const data = await productService.getProducts();
+
       setProducts(data);
     } catch (error) {
-      console.error(error);
+      console.error(
+        "Erreur chargement produits :",
+        error.response?.data || error,
+      );
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleCreate(data) {
+  async function handleSubmit(data) {
     try {
       setSaving(true);
 
-      await productService.createProduct(data);
+      if (selectedProduct) {
+        await productService.updateProduct(
+          selectedProduct.id,
+          data,
+        );
+      } else {
+        await productService.createProduct(data);
+      }
+
+      await loadProducts();
 
       setOpen(false);
-
-      loadProducts();
+      setSelectedProduct(null);
     } catch (error) {
-      console.error(error);
+      const response = error.response?.data;
+
+      console.error(
+        selectedProduct
+          ? "Erreur modification produit :"
+          : "Erreur création produit :",
+        response || error,
+      );
+
+      if (response?.errors) {
+        response.errors.forEach((issue) => {
+          console.error(
+            `${issue.path?.join(".") || "champ"} : ${issue.message}`,
+          );
+        });
+      }
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleCloseModal() {
+    if (saving) return;
+
+    setOpen(false);
+    setSelectedProduct(null);
   }
 
   useEffect(() => {
@@ -51,26 +88,40 @@ function Products() {
   }, []);
 
   const filteredProducts = products.filter((product) =>
-    product.name.toLowerCase().includes(search.toLowerCase()),
+    product.name
+      .toLowerCase()
+      .includes(search.trim().toLowerCase()),
   );
 
   return (
     <section className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Produits</h1>
+          <h1 className="text-3xl font-bold">
+            Produits
+          </h1>
 
-          <p className="text-slate-500 mt-1">Gérez votre catalogue.</p>
+          <p className="mt-1 text-slate-500">
+            Gérez votre catalogue.
+          </p>
         </div>
 
-        <Button onClick={() => setOpen(true)}>+ Ajouter un produit</Button>
+        <Button
+          type="button"
+          onClick={() => {
+            setSelectedProduct(null);
+            setOpen(true);
+          }}
+        >
+          + Ajouter un produit
+        </Button>
       </div>
 
       <Card>
         <Input
           placeholder="Rechercher un produit..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(event) => setSearch(event.target.value)}
         />
       </Card>
 
@@ -84,19 +135,27 @@ function Products() {
       ) : (
         <ProductTable
           products={filteredProducts}
-          onEdit={(product) => console.log(product)}
+          onEdit={(product) => {
+            setSelectedProduct(product);
+            setOpen(true);
+          }}
           onDelete={(product) => console.log(product)}
         />
       )}
 
       <Modal
         open={open}
-        title="Ajouter un produit"
-        onClose={() => setOpen(false)}
+        title={
+          selectedProduct
+            ? "Modifier le produit"
+            : "Ajouter un produit"
+        }
+        onClose={handleCloseModal}
       >
         <ProductForm
-          onSubmit={handleCreate}
-          onCancel={() => setOpen(false)}
+          product={selectedProduct}
+          onSubmit={handleSubmit}
+          onCancel={handleCloseModal}
           loading={saving}
         />
       </Modal>
