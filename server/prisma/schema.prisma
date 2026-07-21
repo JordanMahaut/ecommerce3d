@@ -83,13 +83,30 @@ model Category {
 }
 
 model Order {
-  id        Int         @id @default(autoincrement())
-  total     Float
-  status    OrderStatus @default(PENDING)
-  userId    Int
-  user      User        @relation(fields: [userId], references: [id])
-  items     OrderItem[]
-  createdAt DateTime    @default(now())
+  id                    Int         @id @default(autoincrement())
+  total                 Decimal
+  status                OrderStatus @default(PENDING)
+
+  shippingFirstname     String
+  shippingLastname      String
+  shippingStreet        String
+  shippingStreet2       String?
+  shippingPostalCode    String
+  shippingCity          String
+  shippingCountry       String
+  shippingPhone         String?
+
+  billingFirstname      String
+  billingLastname       String
+  billingStreet         String
+  billingStreet2        String?
+  billingPostalCode     String
+  billingCity           String
+  billingCountry        String
+
+  userId                 Int
+  user                   User        @relation(fields: [userId], references: [id])
+  items                  OrderItem[]
 }
 
 model OrderItem {
