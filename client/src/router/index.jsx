@@ -12,6 +12,7 @@ import Login from "../pages/Login";
 import Register from "../pages/Register";
 import Cart from "../pages/Cart";
 import Profile from "../pages/Profile";
+import ProductDetails from "../pages/ProductDetails";
 
 import Dashboard from "../pages/admin/Dashboard";
 import Products from "../pages/admin/Products";
@@ -32,6 +33,10 @@ const router = createBrowserRouter([
       {
         path: "shop",
         element: <Shop />,
+      },
+      {
+        path: "products/:slug",
+        element: <ProductDetails />,
       },
       {
         path: "login",
