@@ -1,20 +1,38 @@
-const { register, login, getProfile } = require("../services/auth.service");
-const { registerSchema, loginSchema } = require("../validators/auth.validator");
+const {
+  register,
+  login,
+  getProfile,
+  verifyEmail,
+} = require("../services/auth.service");
+
+const {
+  registerSchema,
+  loginSchema,
+} = require("../validators/auth.validator");
 
 async function registerUser(req, res) {
   try {
-    // Validation des données
     const data = registerSchema.parse(req.body);
 
-    // Création de l'utilisateur
-    const user = await register(data);
+    const result = await register(data);
+
+    // Temporaire pour tester sans envoi d'e-mail
+    console.log(
+      "Token de vérification :",
+      result.verificationToken
+    );
+
+    console.log(
+      "Lien de vérification :",
+      `http://localhost:5173/verify-email?token=${result.verificationToken}`
+    );
 
     return res.status(201).json({
-      message: "Utilisateur créé avec succès.",
-      user,
+      message:
+        "Utilisateur créé avec succès. Vérifiez votre adresse e-mail.",
+      user: result.user,
     });
   } catch (error) {
-    // Erreurs de validation Zod
     if (error.name === "ZodError") {
       return res.status(400).json({
         message: "Données invalides.",
@@ -28,6 +46,23 @@ async function registerUser(req, res) {
   }
 }
 
+async function verifyEmailUser(req, res) {
+  try {
+    const { token } = req.body;
+
+    const user = await verifyEmail(token);
+
+    return res.status(200).json({
+      message: "Adresse e-mail vérifiée avec succès.",
+      user,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: error.message,
+    });
+  }
+}
+
 async function loginUser(req, res) {
   try {
     const data = loginSchema.parse(req.body);
@@ -35,9 +70,7 @@ async function loginUser(req, res) {
     const result = await login(data);
 
     return res.status(200).json(result);
-
   } catch (error) {
-
     if (error.name === "ZodError") {
       return res.status(400).json({
         message: "Données invalides.",
@@ -67,4 +100,5 @@ module.exports = {
   registerUser,
   loginUser,
   getMe,
+  verifyEmailUser,
 };
