@@ -2,6 +2,7 @@ const bcrypt = require("bcrypt");
 const prisma = require("../lib/prisma");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+const {sendVerificationEmail} = require("./mail.service");
 
 function generateEmailVerificationToken() {
   const token = crypto.randomBytes(32).toString("hex");
@@ -37,8 +38,7 @@ async function register(data) {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   // Génération du token de vérification
-  const { token, hashedToken } =
-    generateEmailVerificationToken();
+  const { token, hashedToken } = generateEmailVerificationToken();
 
   // Création de l'utilisateur
   const user = await prisma.user.create({
@@ -50,15 +50,16 @@ async function register(data) {
 
       emailVerified: false,
       emailVerificationToken: hashedToken,
-
-      // Le token sera valide pendant 24 heures
       emailVerificationExpires: new Date(
         Date.now() + 24 * 60 * 60 * 1000
       ),
     },
   });
 
-  // On ne renvoie jamais les données sensibles
+  // Envoi de l'e-mail de vérification
+  await sendVerificationEmail(user.email, token);
+
+  // Suppression des données sensibles
   const {
     password: _,
     emailVerificationToken: __,
@@ -66,13 +67,10 @@ async function register(data) {
     ...userWithoutSensitiveData
   } = user;
 
-  return {
-    user: userWithoutSensitiveData,
-
-    // Token brut destiné à être envoyé par e-mail
-    verificationToken: token,
-  };
+  // On retourne uniquement l'utilisateur
+  return userWithoutSensitiveData;
 }
+
 
 async function verifyEmail(token) {
   if (!token) {

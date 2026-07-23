@@ -14,23 +14,12 @@ async function registerUser(req, res) {
   try {
     const data = registerSchema.parse(req.body);
 
-    const result = await register(data);
-
-    // Temporaire pour tester sans envoi d'e-mail
-    console.log(
-      "Token de vérification :",
-      result.verificationToken
-    );
-
-    console.log(
-      "Lien de vérification :",
-      `http://localhost:5173/verify-email?token=${result.verificationToken}`
-    );
+    const user = await register(data);
 
     return res.status(201).json({
       message:
-        "Utilisateur créé avec succès. Vérifiez votre adresse e-mail.",
-      user: result.user,
+        "Utilisateur créé avec succès. Un e-mail de vérification vous a été envoyé.",
+      user,
     });
   } catch (error) {
     if (error.name === "ZodError") {
