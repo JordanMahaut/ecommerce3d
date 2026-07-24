@@ -2,7 +2,7 @@ const bcrypt = require("bcrypt");
 const prisma = require("../lib/prisma");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const {sendVerificationEmail} = require("./mail.service");
+const {sendVerificationEmail, sendResetPasswordEmail} = require("./mail.service");
 
 function generateEmailVerificationToken() {
   const token = crypto.randomBytes(32).toString("hex");
@@ -177,6 +177,85 @@ async function login(data) {
   };
 }
 
+async function forgotPassword(email) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const user = await prisma.user.findUnique({
+    where: {
+      email: normalizedEmail,
+    },
+  });
+
+  // On ne révèle jamais si l'utilisateur existe ou non
+  if (!user) {
+    return;
+  }
+
+  const token = crypto.randomBytes(32).toString("hex");
+
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
+
+  await prisma.user.update({
+    where: {
+      id: user.id,
+    },
+    data: {
+      passwordResetToken: hashedToken,
+      passwordResetExpires: new Date(
+        Date.now() + 60 * 60 * 1000
+      ),
+    },
+  });
+
+  await sendResetPasswordEmail(user.email, token);
+}
+
+async function resetPassword(token, password) {
+  if (!token) {
+    throw new Error("Token invalide.");
+  }
+
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
+
+  const user = await prisma.user.findFirst({
+    where: {
+      passwordResetToken: hashedToken,
+      passwordResetExpires: {
+        gt: new Date(),
+      },
+    },
+  });
+
+  if (!user) {
+    throw new Error(
+      "Le lien de réinitialisation est invalide ou expiré."
+    );
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  await prisma.user.update({
+    where: {
+      id: user.id,
+    },
+    data: {
+      password: hashedPassword,
+      passwordResetToken: null,
+      passwordResetExpires: null,
+    },
+  });
+
+  return {
+    message: "Mot de passe réinitialisé avec succès.",
+  };
+}
+
 async function getProfile(userId) {
   const user = await prisma.user.findUnique({
     where: {
@@ -206,4 +285,6 @@ module.exports = {
   login,
   getProfile,
   verifyEmail,
+  forgotPassword,
+  resetPassword,
 };

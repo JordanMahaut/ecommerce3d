@@ -3,6 +3,8 @@ const {
   login,
   getProfile,
   verifyEmail,
+  forgotPassword,
+  resetPassword,
 } = require("../services/auth.service");
 
 const {
@@ -85,9 +87,54 @@ async function getMe(req, res) {
   }
 }
 
+async function forgotPasswordUser(req, res) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        message: "L'adresse e-mail est obligatoire.",
+      });
+    }
+
+    await forgotPassword(email);
+
+    return res.status(200).json({
+      message:
+        "Si un compte existe avec cette adresse e-mail, un lien de réinitialisation a été envoyé.",
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: error.message,
+    });
+  }
+}
+
+async function resetPasswordUser(req, res) {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({
+        message: "Le token et le nouveau mot de passe sont obligatoires.",
+      });
+    }
+
+    const result = await resetPassword(token, password);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(400).json({
+      message: error.message,
+    });
+  }
+}
+
 module.exports = {
   registerUser,
   loginUser,
   getMe,
   verifyEmailUser,
+  forgotPasswordUser,
+  resetPasswordUser,
 };

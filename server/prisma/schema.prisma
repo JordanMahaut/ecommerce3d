@@ -20,6 +20,9 @@ model User {
   emailVerificationToken   String?   @unique
   emailVerificationExpires DateTime?
 
+  passwordResetToken    String?   @unique
+  passwordResetExpires  DateTime?
+
   orders    Order[]
   addresses Address[]
 
