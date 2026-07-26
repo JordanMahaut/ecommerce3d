@@ -20,14 +20,15 @@ model User {
   emailVerificationToken   String?   @unique
   emailVerificationExpires DateTime?
 
-  passwordResetToken    String?   @unique
-  passwordResetExpires  DateTime?
+  passwordResetToken   String?   @unique
+  passwordResetExpires DateTime?
 
   orders    Order[]
+  quotes    Quote[]
   addresses Address[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  updatedAt DateTime @updatedAt
 }
 
 model Address {
@@ -49,11 +50,8 @@ model Address {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
 
-enum AddressType {
-  SHIPPING
-  BILLING
+  @@index([userId])
 }
 
 model Product {
@@ -62,8 +60,8 @@ model Product {
   slug        String @unique
   description String
 
-  price Float
-  stock Int   @default(0)
+  price Decimal @db.Decimal(10, 2)
+  stock Int     @default(0)
 
   image   String?
   gallery Json?
@@ -74,10 +72,12 @@ model Product {
   categoryId Int?
   category   Category? @relation(fields: [categoryId], references: [id])
 
-  OrderItems OrderItem[]
+  orderItems OrderItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
 }
 
 model Category {
@@ -95,12 +95,41 @@ model Category {
 }
 
 model Order {
-  id     Int         @id @default(autoincrement())
-  total  Decimal
-  status OrderStatus @default(PENDING)
+  id        Int    @id @default(autoincrement())
+  reference String @unique
+
+  subtotal     Decimal @db.Decimal(10, 2)
+  shippingCost Decimal @default(0) @db.Decimal(10, 2)
+  discount     Decimal @default(0) @db.Decimal(10, 2)
+  total        Decimal @db.Decimal(10, 2)
+
+  status        OrderStatus   @default(REQUESTED)
+  paymentStatus PaymentStatus @default(NOT_STARTED)
+
+  customerEmail String
+  customerNote  String? @db.Text
+
+  rejectionReason    String? @db.Text
+  cancellationReason String? @db.Text
+
+  estimatedShippingAt DateTime?
+  approvedAt          DateTime?
+  rejectedAt          DateTime?
+  paidAt              DateTime?
+  printingStartedAt   DateTime?
+  readyAt             DateTime?
+  shippedAt           DateTime?
+  deliveredAt         DateTime?
+  cancelledAt         DateTime?
+
+  shippingMethod ShippingMethod
+
+  relayPointId   String?
+  relayPointName String?
 
   shippingFirstname  String
   shippingLastname   String
+  shippingCompany    String?
   shippingStreet     String
   shippingStreet2    String?
   shippingPostalCode String
@@ -110,34 +139,141 @@ model Order {
 
   billingFirstname  String
   billingLastname   String
+  billingCompany    String?
   billingStreet     String
   billingStreet2    String?
   billingPostalCode String
   billingCity       String
   billingCountry    String
+  billingPhone      String?
 
   userId Int
-  user   User        @relation(fields: [userId], references: [id])
-  items  OrderItem[]
+  user   User @relation(fields: [userId], references: [id])
+
+  quoteId Int?   @unique
+  quote   Quote? @relation(fields: [quoteId], references: [id])
+
+  items    OrderItem[]
+  payments Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([shippingMethod])
 }
 
 model OrderItem {
-  id        Int     @id @default(autoincrement())
-  quantity  Int
-  price     Float
-  orderId   Int
-  order     Order   @relation(fields: [orderId], references: [id])
-  productId Int
-  product   Product @relation(fields: [productId], references: [id])
+  id       Int     @id @default(autoincrement())
+  quantity Int
+  price    Decimal @db.Decimal(10, 2)
+
+  productName  String
+  productSlug  String?
+  productImage String?
+
+  orderId Int
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Payment {
+  id        Int    @id @default(autoincrement())
+  reference String @unique
+
+  amount   Decimal @db.Decimal(10, 2)
+  currency String  @default("EUR")
+
+  type     PaymentType
+  provider PaymentProvider
+  method   PaymentMethod?
+  status   PaymentTransactionStatus @default(PENDING)
+
+  providerPaymentId String? @unique
+  providerSessionId String? @unique
+  providerCaptureId String? @unique
+  providerRefundId  String? @unique
+
+  checkoutUrl String? @db.Text
+
+  failureCode    String?
+  failureMessage String? @db.Text
+
+  authorizedAt DateTime?
+  paidAt       DateTime?
+  failedAt     DateTime?
+  cancelledAt  DateTime?
+  refundedAt   DateTime?
+  expiresAt    DateTime?
+
+  metadata Json?
+
+  orderId Int
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+  @@index([provider])
 }
 
 model Quote {
-  id          Int      @id @default(autoincrement())
+  id        Int    @id @default(autoincrement())
+  reference String @unique
+
   name        String
   email       String
-  message     String
+  phone       String?
+  message     String  @db.Text
   serviceType String
-  createdAt   DateTime @default(now())
+
+  status QuoteStatus @default(PENDING)
+
+  title       String?
+  description String? @db.Text
+
+  subtotal     Decimal? @db.Decimal(10, 2)
+  shippingCost Decimal? @default(0) @db.Decimal(10, 2)
+  discount     Decimal? @default(0) @db.Decimal(10, 2)
+  total        Decimal? @db.Decimal(10, 2)
+
+  depositPercentage Int?
+  depositAmount     Decimal? @db.Decimal(10, 2)
+  balanceAmount     Decimal? @db.Decimal(10, 2)
+
+  adminNote       String? @db.Text
+  rejectionReason String? @db.Text
+
+  validUntil  DateTime?
+  sentAt      DateTime?
+  acceptedAt  DateTime?
+  rejectedAt  DateTime?
+  expiredAt   DateTime?
+  cancelledAt DateTime?
+
+  attachmentUrl String? @db.Text
+
+  userId Int?
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  order Order?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
 }
 
 enum Role {
@@ -145,11 +281,109 @@ enum Role {
   ADMIN
 }
 
+enum AddressType {
+  SHIPPING
+  BILLING
+}
+
 enum OrderStatus {
-  PENDING
+  REQUESTED
+  UNDER_REVIEW
+  NEEDS_INFORMATION
+  APPROVED
+  AWAITING_PAYMENT
+  PARTIALLY_PAID
   PAID
   PRINTING
+  READY
   SHIPPED
   DELIVERED
+  REJECTED
   CANCELLED
+}
+
+enum PaymentStatus {
+  NOT_STARTED
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  FAILED
+  CANCELLED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  STRIPE
+  PAYPAL
+}
+
+enum PaymentMethod {
+  CARD
+  KLARNA
+  PAYPAL
+  PAYPAL_PAY_LATER
+}
+
+enum PaymentType {
+  FULL_PAYMENT
+  DEPOSIT
+  BALANCE
+  ADDITIONAL_PAYMENT
+}
+
+enum PaymentTransactionStatus {
+  PENDING
+  REQUIRES_ACTION
+  AUTHORIZED
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+  EXPIRED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+enum QuoteStatus {
+  PENDING
+  UNDER_REVIEW
+  NEEDS_INFORMATION
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CONVERTED_TO_ORDER
+  CANCELLED
+}
+
+enum NotificationType {
+  ORDER_CREATED
+  QUOTE_CREATED
+  ORDER_UPDATED
+  PAYMENT_RECEIVED
+  SYSTEM
+}
+
+enum ShippingMethod {
+  COLISSIMO
+  MONDIAL_RELAY
+  CHRONOPOST
+  PICKUP
+}
+
+model Notification {
+  id       Int              @id @default(autoincrement())
+  type     NotificationType
+  title    String
+  message  String
+  link     String?
+  isRead   Boolean          @default(false)
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isRead, createdAt])
+  @@index([type])
 }

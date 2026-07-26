@@ -6,21 +6,34 @@ async function getProducts() {
       isActive: true,
     },
     include: {
-      category: true,
+      category: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      },
     },
     orderBy: {
-      id: "desc",
+      createdAt: "desc",
     },
   });
 }
 
 async function getProductBySlug(slug) {
-  const product = await prisma.product.findUnique({
+  const product = await prisma.product.findFirst({
     where: {
       slug,
+      isActive: true,
     },
     include: {
-      category: true,
+      category: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      },
     },
   });
 
@@ -34,31 +47,83 @@ async function getProductBySlug(slug) {
 async function createProduct(data) {
   return prisma.product.create({
     data: {
-      ...data,
-      categoryId: Number(data.categoryId),
+      name: data.name,
+      slug: data.slug,
+      description: data.description,
+      price: data.price,
+      stock: data.stock,
+      image: data.image || null,
+      gallery: data.gallery || null,
+      featured: data.featured ?? false,
+      isActive: data.isActive ?? true,
+      categoryId: data.categoryId || null,
     },
     include: {
-      category: true,
+      category: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      },
     },
   });
 }
 
 async function updateProduct(id, data) {
-  const normalizedData = {
-    ...data,
-  };
-
-  if (data.categoryId !== undefined) {
-    normalizedData.categoryId = Number(data.categoryId);
-  }
-
   return prisma.product.update({
     where: {
-      id: Number(id),
+      id,
     },
-    data: normalizedData,
+    data: {
+      ...(data.name !== undefined && {
+        name: data.name,
+      }),
+
+      ...(data.slug !== undefined && {
+        slug: data.slug,
+      }),
+
+      ...(data.description !== undefined && {
+        description: data.description,
+      }),
+
+      ...(data.price !== undefined && {
+        price: data.price,
+      }),
+
+      ...(data.stock !== undefined && {
+        stock: data.stock,
+      }),
+
+      ...(data.image !== undefined && {
+        image: data.image,
+      }),
+
+      ...(data.gallery !== undefined && {
+        gallery: data.gallery,
+      }),
+
+      ...(data.featured !== undefined && {
+        featured: data.featured,
+      }),
+
+      ...(data.isActive !== undefined && {
+        isActive: data.isActive,
+      }),
+
+      ...(data.categoryId !== undefined && {
+        categoryId: data.categoryId || null,
+      }),
+    },
     include: {
-      category: true,
+      category: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      },
     },
   });
 }
@@ -66,7 +131,7 @@ async function updateProduct(id, data) {
 async function deleteProduct(id) {
   await prisma.product.delete({
     where: {
-      id: Number(id),
+      id,
     },
   });
 

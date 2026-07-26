@@ -1,3 +1,5 @@
+const fs = require("fs");
+
 const {
   getProducts,
   getProductBySlug,
@@ -11,12 +13,43 @@ const {
   updateProductSchema,
 } = require("../validators/product.validator");
 
+function deleteUploadedFile(file) {
+  if (!file?.path) {
+    return;
+  }
+
+  fs.unlink(file.path, (error) => {
+    if (error && error.code !== "ENOENT") {
+      console.error(
+        "Impossible de supprimer le fichier uploadé :",
+        error,
+      );
+    }
+  });
+}
+
+function formatZodErrors(error) {
+  return error.issues.reduce((errors, issue) => {
+    const field = issue.path.join(".") || "general";
+
+    if (!errors[field]) {
+      errors[field] = [];
+    }
+
+    errors[field].push(issue.message);
+
+    return errors;
+  }, {});
+}
+
 async function listProducts(req, res) {
   try {
     const products = await getProducts();
 
     return res.status(200).json(products);
   } catch (error) {
+    console.error("Erreur récupération produits :", error);
+
     return res.status(500).json({
       message: "Impossible de récupérer les produits.",
     });
@@ -39,25 +72,41 @@ async function storeProduct(req, res) {
   try {
     const body = {
       ...req.body,
+
       image: req.file
-        ? `${req.protocol}://${req.get("host")}/uploads/products/${req.file.filename}`
+        ? `${req.protocol}://${req.get(
+            "host",
+          )}/uploads/products/${req.file.filename}`
         : null,
     };
 
-    const data = productSchema.parse(body);
-    const product = await createProduct(data);
+    console.log("Données produit reçues :", body);
+
+    const validation = productSchema.safeParse(body);
+
+    if (!validation.success) {
+      deleteUploadedFile(req.file);
+
+      console.error(
+        "Erreurs validation produit :",
+        validation.error.issues,
+      );
+
+      return res.status(400).json({
+        message: "Données invalides.",
+        errors: formatZodErrors(validation.error),
+        received: body,
+      });
+    }
+
+    const product = await createProduct(validation.data);
 
     return res.status(201).json({
       message: "Produit créé avec succès.",
       product,
     });
   } catch (error) {
-    if (error.name === "ZodError") {
-      return res.status(400).json({
-        message: "Données invalides.",
-        errors: error.issues,
-      });
-    }
+    deleteUploadedFile(req.file);
 
     if (error.code === "P2002") {
       return res.status(409).json({
@@ -65,7 +114,13 @@ async function storeProduct(req, res) {
       });
     }
 
-    console.error(error);
+    if (error.code === "P2003") {
+      return res.status(400).json({
+        message: "La catégorie sélectionnée est invalide.",
+      });
+    }
+
+    console.error("Erreur création produit :", error);
 
     return res.status(500).json({
       message: "Impossible de créer le produit.",
@@ -78,6 +133,8 @@ async function editProduct(req, res) {
     const id = Number(req.params.id);
 
     if (!Number.isInteger(id) || id <= 0) {
+      deleteUploadedFile(req.file);
+
       return res.status(400).json({
         message: "Identifiant de produit invalide.",
       });
@@ -88,34 +145,59 @@ async function editProduct(req, res) {
     };
 
     if (req.file) {
-      body.image = `${req.protocol}://${req.get("host")}/uploads/products/${req.file.filename}`;
+      body.image = `${req.protocol}://${req.get(
+        "host",
+      )}/uploads/products/${req.file.filename}`;
     }
 
-    const data = updateProductSchema.parse(body);
+    console.log("Données modification reçues :", body);
 
-    if (Object.keys(data).length === 0) {
+    const validation = updateProductSchema.safeParse(body);
+
+    if (!validation.success) {
+      deleteUploadedFile(req.file);
+
+      console.error(
+        "Erreurs validation modification :",
+        validation.error.issues,
+      );
+
+      return res.status(400).json({
+        message: "Données invalides.",
+        errors: formatZodErrors(validation.error),
+        received: body,
+      });
+    }
+
+    if (Object.keys(validation.data).length === 0) {
+      deleteUploadedFile(req.file);
+
       return res.status(400).json({
         message: "Aucune donnée à modifier.",
       });
     }
 
-    const product = await updateProduct(id, data);
+    const product = await updateProduct(
+      id,
+      validation.data,
+    );
 
     return res.status(200).json({
       message: "Produit modifié avec succès.",
       product,
     });
   } catch (error) {
-    if (error.name === "ZodError") {
-      return res.status(400).json({
-        message: "Données invalides.",
-        errors: error.issues,
-      });
-    }
+    deleteUploadedFile(req.file);
 
     if (error.code === "P2002") {
       return res.status(409).json({
         message: "Ce slug est déjà utilisé.",
+      });
+    }
+
+    if (error.code === "P2003") {
+      return res.status(400).json({
+        message: "La catégorie sélectionnée est invalide.",
       });
     }
 
@@ -125,7 +207,7 @@ async function editProduct(req, res) {
       });
     }
 
-    console.error(error);
+    console.error("Erreur modification produit :", error);
 
     return res.status(500).json({
       message: "Impossible de modifier le produit.",
@@ -159,6 +241,8 @@ async function destroyProduct(req, res) {
           "Ce produit est lié à une commande et ne peut pas être supprimé.",
       });
     }
+
+    console.error("Erreur suppression produit :", error);
 
     return res.status(500).json({
       message: "Impossible de supprimer le produit.",

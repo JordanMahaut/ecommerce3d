@@ -1,13 +1,27 @@
 const { z } = require("zod");
 
+const formBoolean = z.preprocess((value) => {
+  if (value === true || value === "true" || value === "1") {
+    return true;
+  }
+
+  if (value === false || value === "false" || value === "0") {
+    return false;
+  }
+
+  return value;
+}, z.boolean());
+
 const productSchema = z.object({
   name: z
     .string()
+    .trim()
     .min(2, "Le nom doit contenir au moins 2 caractères")
     .max(120, "Le nom est trop long"),
 
   slug: z
     .string()
+    .trim()
     .min(2, "Le slug est obligatoire")
     .max(140, "Le slug est trop long")
     .regex(
@@ -17,6 +31,7 @@ const productSchema = z.object({
 
   description: z
     .string()
+    .trim()
     .min(10, "La description doit contenir au moins 10 caractères"),
 
   price: z.coerce
@@ -39,9 +54,9 @@ const productSchema = z.object({
     .optional()
     .nullable(),
 
-  featured: z.coerce.boolean().optional().default(false),
+  featured: formBoolean.optional().default(false),
 
-  isActive: z.coerce.boolean().optional().default(true),
+  isActive: formBoolean.optional().default(true),
 
   categoryId: z.coerce
     .number()

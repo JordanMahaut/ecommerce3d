@@ -1,6 +1,6 @@
-const prisma = require("../lib/prisma");
+import prisma from "../lib/prisma.js";
 
-async function getAddresses(userId) {
+export async function getUserAddresses(userId) {
   return prisma.address.findMany({
     where: {
       userId,
@@ -16,30 +16,33 @@ async function getAddresses(userId) {
   });
 }
 
-async function getAddressById(id, userId) {
-  const address = await prisma.address.findFirst({
+export async function getUserAddressById(addressId, userId) {
+  return prisma.address.findFirst({
     where: {
-      id,
+      id: addressId,
       userId,
     },
   });
-
-  if (!address) {
-    const error = new Error("Adresse introuvable");
-    error.statusCode = 404;
-    throw error;
-  }
-
-  return address;
 }
 
-async function createAddress(userId, data) {
-  return prisma.$transaction(async (tx) => {
-    if (data.isDefault) {
-      await tx.address.updateMany({
+export async function createUserAddress(userId, data) {
+  return prisma.$transaction(async (transaction) => {
+    const addressCount = await transaction.address.count({
+      where: {
+        userId,
+        type: data.type,
+      },
+    });
+
+    // La première adresse d'un type devient automatiquement celle par défaut.
+    const shouldBeDefault = data.isDefault || addressCount === 0;
+
+    if (shouldBeDefault) {
+      await transaction.address.updateMany({
         where: {
           userId,
           type: data.type,
+          isDefault: true,
         },
         data: {
           isDefault: false,
@@ -47,38 +50,51 @@ async function createAddress(userId, data) {
       });
     }
 
-    const addressCount = await tx.address.count({
-      where: {
-        userId,
-        type: data.type,
-      },
-    });
-
-    return tx.address.create({
+    return transaction.address.create({
       data: {
-        ...data,
+        type: data.type,
+        firstname: data.firstname,
+        lastname: data.lastname,
+        company: normalizeOptionalString(data.company),
+        street: data.street,
+        street2: normalizeOptionalString(data.street2),
+        postalCode: data.postalCode,
+        city: data.city,
+        country: data.country || "France",
+        phone: normalizeOptionalString(data.phone),
+        isDefault: shouldBeDefault,
         userId,
-
-        // La première adresse de ce type devient automatiquement principale.
-        isDefault: data.isDefault || addressCount === 0,
       },
     });
   });
 }
 
-async function updateAddress(id, userId, data) {
-  const currentAddress = await getAddressById(id, userId);
+export async function updateUserAddress(addressId, userId, data) {
+  return prisma.$transaction(async (transaction) => {
+    const existingAddress = await transaction.address.findFirst({
+      where: {
+        id: addressId,
+        userId,
+      },
+    });
 
-  return prisma.$transaction(async (tx) => {
-    const finalType = data.type || currentAddress.type;
+    if (!existingAddress) {
+      return null;
+    }
 
-    if (data.isDefault) {
-      await tx.address.updateMany({
+    const nextType = data.type || existingAddress.type;
+    const shouldBeDefault =
+      data.isDefault === true ||
+      (existingAddress.isDefault && nextType === existingAddress.type);
+
+    if (shouldBeDefault) {
+      await transaction.address.updateMany({
         where: {
           userId,
-          type: finalType,
+          type: nextType,
+          isDefault: true,
           id: {
-            not: id,
+            not: addressId,
           },
         },
         data: {
@@ -87,69 +103,70 @@ async function updateAddress(id, userId, data) {
       });
     }
 
-    return tx.address.update({
-      where: {
-        id,
-      },
-      data,
-    });
-  });
-}
+    const updateData = {
+      ...data,
+    };
 
-async function deleteAddress(id, userId) {
-  const address = await getAddressById(id, userId);
-
-  await prisma.address.delete({
-    where: {
-      id,
-    },
-  });
-
-  if (address.isDefault) {
-    const replacement = await prisma.address.findFirst({
-      where: {
-        userId,
-        type: address.type,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
-
-    if (replacement) {
-      await prisma.address.update({
-        where: {
-          id: replacement.id,
-        },
-        data: {
-          isDefault: true,
-        },
-      });
+    if ("company" in updateData) {
+      updateData.company = normalizeOptionalString(updateData.company);
     }
-  }
 
-  return {
-    message: "Adresse supprimée avec succès",
-  };
+    if ("street2" in updateData) {
+      updateData.street2 = normalizeOptionalString(updateData.street2);
+    }
+
+    if ("phone" in updateData) {
+      updateData.phone = normalizeOptionalString(updateData.phone);
+    }
+
+    /*
+     * On empêche une adresse par défaut de devenir simplement "non définie"
+     * sans qu'une autre adresse du même type soit choisie.
+     */
+    if (
+      existingAddress.isDefault &&
+      data.isDefault === false &&
+      nextType === existingAddress.type
+    ) {
+      delete updateData.isDefault;
+    }
+
+    return transaction.address.update({
+      where: {
+        id: addressId,
+      },
+      data: updateData,
+    });
+  });
 }
 
-async function setDefaultAddress(id, userId) {
-  const address = await getAddressById(id, userId);
+export async function setDefaultUserAddress(addressId, userId) {
+  return prisma.$transaction(async (transaction) => {
+    const address = await transaction.address.findFirst({
+      where: {
+        id: addressId,
+        userId,
+      },
+    });
 
-  return prisma.$transaction(async (tx) => {
-    await tx.address.updateMany({
+    if (!address) {
+      return null;
+    }
+
+    await transaction.address.updateMany({
       where: {
         userId,
         type: address.type,
+        isDefault: true,
       },
       data: {
         isDefault: false,
       },
     });
 
-    return tx.address.update({
+    return transaction.address.update({
       where: {
-        id,
+        id: addressId,
       },
       data: {
         isDefault: true,
@@ -158,11 +175,62 @@ async function setDefaultAddress(id, userId) {
   });
 }
 
-module.exports = {
-  getAddresses,
-  getAddressById,
-  createAddress,
-  updateAddress,
-  deleteAddress,
-  setDefaultAddress,
-};
+export async function deleteUserAddress(addressId, userId) {
+  return prisma.$transaction(async (transaction) => {
+    const address = await transaction.address.findFirst({
+      where: {
+        id: addressId,
+        userId,
+      },
+    });
+
+    if (!address) {
+      return null;
+    }
+
+    await transaction.address.delete({
+      where: {
+        id: addressId,
+      },
+    });
+
+    /*
+     * Si l'adresse supprimée était celle par défaut,
+     * on choisit automatiquement l'adresse la plus récente du même type.
+     */
+    if (address.isDefault) {
+      const replacementAddress = await transaction.address.findFirst({
+        where: {
+          userId,
+          type: address.type,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (replacementAddress) {
+        await transaction.address.update({
+          where: {
+            id: replacementAddress.id,
+          },
+          data: {
+            isDefault: true,
+          },
+        });
+      }
+    }
+
+    return address;
+  });
+}
+
+function normalizeOptionalString(value) {
+  if (typeof value !== "string") {
+    return value || null;
+  }
+
+  const trimmedValue = value.trim();
+
+  return trimmedValue.length > 0 ? trimmedValue : null;
+}
