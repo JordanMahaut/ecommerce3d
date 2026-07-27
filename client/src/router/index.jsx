@@ -5,6 +5,7 @@ import AdminLayout from "../layouts/AdminLayout";
 
 import ProtectedRoute from "../routes/ProtectedRoute";
 import AdminRoute from "../routes/AdminRoute";
+import AdminQuestions from "../pages/admin/Questions";
 
 import Home from "../pages/Home";
 import Shop from "../pages/Shop";
@@ -76,6 +77,10 @@ const router = createBrowserRouter([
           {
             path: "profile/orders/:id",
             element: <OrderDetails />,
+          },
+          {
+            path: "questions",
+            element: <AdminQuestions />,
           },
         ],
       },

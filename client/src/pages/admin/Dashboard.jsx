@@ -1,41 +1,93 @@
-function Dashboard() {
-  const stats = [
-    { label: "Produits", value: 0 },
-    { label: "Commandes", value: 0 },
-    { label: "Utilisateurs", value: 0 },
-    { label: "Devis", value: 0 },
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import useDashboard from "@/hooks/useDashboard";
+import {
+  Euro,
+  FolderTree,
+  MessageSquareText,
+  Package,
+  ShoppingCart,
+  Users,
+} from "lucide-react";
+
+export default function Dashboard() {
+  const { stats, loading } = useDashboard();
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        Chargement du tableau de bord...
+      </div>
+    );
+  }
+
+  const cards = [
+    {
+      title: "Produits",
+      value: stats?.products ?? 0,
+      icon: Package,
+    },
+    {
+      title: "Catégories",
+      value: stats?.categories ?? 0,
+      icon: FolderTree,
+    },
+    {
+      title: "Commandes",
+      value: stats?.orders ?? 0,
+      icon: ShoppingCart,
+    },
+    {
+      title: "Devis",
+      value: stats?.quotes ?? 0,
+      icon: MessageSquareText,
+    },
+    {
+      title: "Utilisateurs",
+      value: stats?.users ?? 0,
+      icon: Users,
+    },
+    {
+      title: "Chiffre d'affaires",
+      value: `${stats?.revenue ?? 0} €`,
+      icon: Euro,
+    },
   ];
 
   return (
-    <section>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold">
           Tableau de bord
         </h1>
 
-        <p className="mt-2 text-slate-500">
-          Gérez votre boutique et vos services.
+        <p className="text-muted-foreground">
+          Bienvenue dans l'administration de votre boutique.
         </p>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
-          <article
-            key={stat.label}
-            className="rounded-2xl border bg-white p-6 shadow-sm"
-          >
-            <p className="text-sm text-slate-500">
-              {stat.label}
-            </p>
+      <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+        {cards.map((card) => {
+          const Icon = card.icon;
 
-            <p className="mt-3 text-3xl font-bold text-slate-900">
-              {stat.value}
-            </p>
-          </article>
-        ))}
+          return (
+            <Card key={card.title}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {card.title}
+                </CardTitle>
+
+                <Icon className="h-5 w-5 text-muted-foreground" />
+              </CardHeader>
+
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  {card.value}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
-    </section>
+    </div>
   );
 }
-
-export default Dashboard;

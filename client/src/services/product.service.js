@@ -1,27 +1,31 @@
-import api from "../api/axios";
+import api from "@/api/axios";
 
 export async function getProducts() {
-  const response = await api.get("/products");
-  return response.data;
+  const { data } = await api.get("/products");
+
+  return data;
 }
 
 export async function getProductBySlug(slug) {
-  const response = await api.get(`/products/${slug}`);
-  return response.data;
+  const { data } = await api.get(`/products/${slug}`);
+
+  return data;
 }
 
-export async function createProduct(data) {
-  const response = await api.post("/products", data);
-  return response.data;
+export async function createProduct(formData) {
+  const { data } = await api.post("/products", formData);
+
+  return data;
 }
 
-export async function updateProduct(id, data) {
-  const response = await api.put(`/products/${id}`, data);
-  return response.data;
+export async function updateProduct(id, formData) {
+  const { data } = await api.put(`/products/${id}`, formData);
+
+  return data;
 }
 
 export async function deleteProduct(id) {
-  const response = await api.delete(`/products/${id}`);
+  const { data } = await api.delete(`/products/${id}`);
 
-  return response.data;
+  return data;
 }
