@@ -112,21 +112,31 @@ model Order {
   rejectionReason    String? @db.Text
   cancellationReason String? @db.Text
 
+  /**
+   * Estimation communiquée au client
+   */
   estimatedShippingAt DateTime?
-  approvedAt          DateTime?
-  rejectedAt          DateTime?
-  paidAt              DateTime?
-  printingStartedAt   DateTime?
-  readyAt             DateTime?
-  shippedAt           DateTime?
-  deliveredAt         DateTime?
-  cancelledAt         DateTime?
+
+  /**
+   * Dates de suivi de la commande
+   */
+  approvedAt        DateTime?
+  rejectedAt        DateTime?
+  paidAt            DateTime?
+  printingStartedAt DateTime?
+  readyAt           DateTime?
+  shippedAt         DateTime?
+  deliveredAt       DateTime?
+  cancelledAt       DateTime?
 
   shippingMethod ShippingMethod
 
   relayPointId   String?
   relayPointName String?
 
+  /**
+   * Adresse de livraison sauvegardée au moment de la commande
+   */
   shippingFirstname  String
   shippingLastname   String
   shippingCompany    String?
@@ -137,6 +147,9 @@ model Order {
   shippingCountry    String
   shippingPhone      String?
 
+  /**
+   * Adresse de facturation sauvegardée au moment de la commande
+   */
   billingFirstname  String
   billingLastname   String
   billingCompany    String?
@@ -150,8 +163,11 @@ model Order {
   userId Int
   user   User @relation(fields: [userId], references: [id])
 
+  /**
+   * Une commande possède au maximum un devis
+   */
   quoteId Int?   @unique
-  quote   Quote? @relation(fields: [quoteId], references: [id])
+  quote   Quote? @relation(fields: [quoteId], references: [id], onDelete: SetNull)
 
   items    OrderItem[]
   payments Payment[]
@@ -163,6 +179,7 @@ model Order {
   @@index([status])
   @@index([paymentStatus])
   @@index([shippingMethod])
+  @@index([createdAt])
 }
 
 model OrderItem {
@@ -232,14 +249,24 @@ model Quote {
   id        Int    @id @default(autoincrement())
   reference String @unique
 
-  name        String
-  email       String
-  phone       String?
-  message     String  @db.Text
+  /**
+   * Informations du client
+   */
+  name  String
+  email String
+  phone String?
+
+  /**
+   * Demande initiale du client
+   */
+  message     String @db.Text
   serviceType String
 
   status QuoteStatus @default(PENDING)
 
+  /**
+   * Contenu préparé par l'administrateur
+   */
   title       String?
   description String? @db.Text
 
@@ -248,13 +275,28 @@ model Quote {
   discount     Decimal? @default(0) @db.Decimal(10, 2)
   total        Decimal? @db.Decimal(10, 2)
 
+  /**
+   * Paiement total ou acompte
+   */
   depositPercentage Int?
   depositAmount     Decimal? @db.Decimal(10, 2)
   balanceAmount     Decimal? @db.Decimal(10, 2)
 
+  /**
+   * Délai de traitement communiqué par l'administrateur
+   */
+  processingMinDays Int?
+  processingMaxDays Int?
+
+  /**
+   * Notes et réponses administratives
+   */
   adminNote       String? @db.Text
   rejectionReason String? @db.Text
 
+  /**
+   * Validité et historique du devis
+   */
   validUntil  DateTime?
   sentAt      DateTime?
   acceptedAt  DateTime?
@@ -267,13 +309,69 @@ model Quote {
   userId Int?
   user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  /**
+   * Relation inverse avec la commande
+   */
   order Order?
+
+  answers QuoteAnswer[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([status])
+  @@index([createdAt])
+  @@index([validUntil])
+}
+
+model QuoteQuestion {
+  id Int @id @default(autoincrement())
+
+  label       String
+  description String?           @db.Text
+  type        QuoteQuestionType
+
+  options Json?
+
+  isRequired Boolean @default(false)
+  isActive   Boolean @default(true)
+  position   Int     @default(0)
+
+  answers QuoteAnswer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, position])
+}
+
+model QuoteAnswer {
+  id Int @id @default(autoincrement())
+
+  value Json
+
+  quoteId Int
+  quote   Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  questionId Int
+  question   QuoteQuestion @relation(fields: [questionId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([quoteId, questionId])
+  @@index([quoteId])
+  @@index([questionId])
+}
+
+enum QuoteQuestionType {
+  TEXT
+  TEXTAREA
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  BOOLEAN
+  NUMBER
+  FILE
 }
 
 enum Role {

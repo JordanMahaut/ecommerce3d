@@ -207,8 +207,8 @@ function Cart() {
                     </p>
 
                     <p className="text-xs text-slate-400">
-                      Taxes incluses
-                    </p>
+  Hors frais de livraison
+</p>
                   </div>
 
                   <span className="text-3xl font-extrabold text-slate-900">
@@ -218,12 +218,12 @@ function Cart() {
               </div>
             </div>
 
-            <button
-              type="button"
-              className="mt-8 w-full rounded-xl bg-indigo-600 px-6 py-4 text-lg font-bold text-white shadow-lg shadow-indigo-200 transition hover:-translate-y-0.5 hover:bg-indigo-700"
-            >
-              Passer la commande
-            </button>
+            <Link
+  to="/checkout"
+  className="mt-8 flex w-full items-center justify-center rounded-xl bg-indigo-600 px-6 py-4 text-lg font-bold text-white shadow-lg shadow-indigo-200 transition hover:-translate-y-0.5 hover:bg-indigo-700"
+>
+  Passer la commande
+</Link>
 
             <div className="mt-5 flex items-center justify-center gap-2 text-sm text-slate-500">
               <span>🔒</span>

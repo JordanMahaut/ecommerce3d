@@ -1,73 +1,156 @@
-import { useEffect, useState } from "react";
-
-import ProductTable from "../../components/admin/ProductTable";
+import { useEffect, useMemo, useState } from "react";
 
 import Button from "../../components/ui/Button";
-import Card from "../../components/ui/Card";
-import Input from "../../components/ui/Input";
 import Spinner from "../../components/ui/Spinner";
 import EmptyState from "../../components/ui/EmptyState";
 import Modal from "../../components/ui/Modal";
+
 import ProductForm from "../../components/admin/ProductForm";
+import ProductStats from "../../components/admin/products/ProductStats";
+import ProductFilters from "../../components/admin/products/ProductFilters";
+import ProductTable from "../../components/admin/products/ProductTable";
 
 import * as productService from "../../services/product.service";
+import * as categoryService from "../../services/category.service";
+
+import { normalizeProductsResponse } from "../../utils/formatters";
 
 function Products() {
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [stockFilter, setStockFilter] = useState("");
+
   const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+
+  const [modalOpen, setModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   async function loadProducts() {
     try {
-      setLoading(true);
-
       const data = await productService.getProducts();
 
-      setProducts(data);
-    } catch (error) {
+      setProducts(normalizeProductsResponse(data));
+    } catch (requestError) {
       console.error(
         "Erreur chargement produits :",
-        error.response?.data || error,
+        requestError.response?.data || requestError,
       );
+
+      setProducts([]);
+
+      setError(
+        requestError.response?.data?.message ||
+          "Impossible de charger les produits.",
+      );
+    }
+  }
+
+  async function loadCategories() {
+    try {
+      const data = await categoryService.getCategories();
+
+      const categoryList = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.categories)
+          ? data.categories
+          : Array.isArray(data?.data)
+            ? data.data
+            : [];
+
+      setCategories(categoryList);
+    } catch (requestError) {
+      console.error(
+        "Erreur chargement catégories :",
+        requestError.response?.data || requestError,
+      );
+
+      setCategories([]);
+    }
+  }
+
+  async function loadPageData() {
+    try {
+      setLoading(true);
+      setError("");
+
+      await Promise.all([loadProducts(), loadCategories()]);
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleSubmit(data) {
+  useEffect(() => {
+    loadPageData();
+  }, []);
+
+  function openCreateModal() {
+    setSelectedProduct(null);
+    setModalOpen(true);
+    setMessage("");
+    setError("");
+  }
+
+  function openEditModal(product) {
+    setSelectedProduct(product);
+    setModalOpen(true);
+    setMessage("");
+    setError("");
+  }
+
+  function closeModal() {
+    if (saving) {
+      return;
+    }
+
+    setModalOpen(false);
+    setSelectedProduct(null);
+  }
+
+  async function handleSubmit(formData) {
     try {
       setSaving(true);
+      setMessage("");
+      setError("");
 
       if (selectedProduct) {
-        await productService.updateProduct(selectedProduct.id, data);
+        await productService.updateProduct(
+          selectedProduct.id,
+          formData,
+        );
+
+        setMessage("Le produit a été modifié avec succès.");
       } else {
-        await productService.createProduct(data);
+        await productService.createProduct(formData);
+
+        setMessage("Le produit a été ajouté avec succès.");
       }
 
       await loadProducts();
 
-      setOpen(false);
+      setModalOpen(false);
       setSelectedProduct(null);
-    } catch (error) {
-      const response = error.response?.data;
+    } catch (requestError) {
+      const response = requestError.response?.data;
 
       console.error(
         selectedProduct
           ? "Erreur modification produit :"
           : "Erreur création produit :",
-        response || error,
+        response || requestError,
       );
 
-      if (response?.errors) {
-        response.errors.forEach((issue) => {
-          console.error(
-            `${issue.path?.join(".") || "champ"} : ${issue.message}`,
-          );
-        });
-      }
+      setError(
+        response?.message ||
+          "Impossible d'enregistrer le produit.",
+      );
     } finally {
       setSaving(false);
     }
@@ -75,7 +158,7 @@ function Products() {
 
   async function handleDelete(product) {
     const confirmed = window.confirm(
-      `Supprimer "${product.name}" ? Cette action est irréversible.`,
+      `Voulez-vous vraiment supprimer « ${product.name} » ?`,
     );
 
     if (!confirmed) {
@@ -83,86 +166,154 @@ function Products() {
     }
 
     try {
+      setDeletingId(product.id);
+      setMessage("");
+      setError("");
+
       await productService.deleteProduct(product.id);
 
-      await loadProducts();
-    } catch (error) {
-      console.error("Erreur suppression :", error.response?.data || error);
+      setMessage("Le produit a été supprimé avec succès.");
 
-      alert("Impossible de supprimer le produit.");
+      await loadProducts();
+    } catch (requestError) {
+      console.error(
+        "Erreur suppression produit :",
+        requestError.response?.data || requestError,
+      );
+
+      setError(
+        requestError.response?.data?.message ||
+          "Impossible de supprimer le produit.",
+      );
+    } finally {
+      setDeletingId(null);
     }
   }
 
-  function handleCloseModal() {
-    if (saving) return;
+  const filteredProducts = useMemo(() => {
+    const safeProducts = Array.isArray(products) ? products : [];
+    const normalizedSearch = search.trim().toLowerCase();
 
-    setOpen(false);
-    setSelectedProduct(null);
-  }
+    return safeProducts.filter((product) => {
+      const productName = String(product.name || "").toLowerCase();
+      const productSlug = String(product.slug || "").toLowerCase();
 
-  useEffect(() => {
-    loadProducts();
-  }, []);
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        productName.includes(normalizedSearch) ||
+        productSlug.includes(normalizedSearch);
 
-  const filteredProducts = products.filter((product) =>
-    product.name.toLowerCase().includes(search.trim().toLowerCase()),
-  );
+      const productCategoryId = String(
+        product.categoryId ?? product.category?.id ?? "",
+      );
+
+      const matchesCategory =
+        categoryFilter === "" ||
+        productCategoryId === categoryFilter;
+
+      const stock = Number(product.stock) || 0;
+
+      let matchesStock = true;
+
+      if (stockFilter === "IN_STOCK") {
+        matchesStock = stock > 5;
+      }
+
+      if (stockFilter === "LOW_STOCK") {
+        matchesStock = stock > 0 && stock <= 5;
+      }
+
+      if (stockFilter === "OUT_OF_STOCK") {
+        matchesStock = stock <= 0;
+      }
+
+      return matchesSearch && matchesCategory && matchesStock;
+    });
+  }, [products, search, categoryFilter, stockFilter]);
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Produits</h1>
+          <h1 className="text-3xl font-bold text-slate-900">
+            Produits
+          </h1>
 
-          <p className="mt-1 text-slate-500">Gérez votre catalogue.</p>
+          <p className="mt-1 text-slate-500">
+            Gérez les produits, les prix et les stocks de votre
+            catalogue.
+          </p>
         </div>
 
-        <Button
-          type="button"
-          onClick={() => {
-            setSelectedProduct(null);
-            setOpen(true);
-          }}
-        >
+        <Button type="button" onClick={openCreateModal}>
           + Ajouter un produit
         </Button>
       </div>
 
-      <Card>
-        <Input
-          placeholder="Rechercher un produit..."
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </Card>
+      {message && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-700">
+          {message}
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+          {error}
+        </div>
+      )}
+
+      <ProductStats products={products} />
+
+      <ProductFilters
+        search={search}
+        onSearchChange={setSearch}
+        category={categoryFilter}
+        onCategoryChange={setCategoryFilter}
+        stockStatus={stockFilter}
+        onStockStatusChange={setStockFilter}
+        categories={categories}
+      />
 
       {loading ? (
-        <Spinner />
+        <div className="flex min-h-64 items-center justify-center">
+          <Spinner />
+        </div>
       ) : filteredProducts.length === 0 ? (
         <EmptyState
-          title="Aucun produit"
-          description="Commencez par créer votre premier produit."
+          title={
+            products.length === 0
+              ? "Aucun produit"
+              : "Aucun résultat"
+          }
+          description={
+            products.length === 0
+              ? "Commencez par créer votre premier produit."
+              : "Aucun produit ne correspond aux filtres sélectionnés."
+          }
         />
       ) : (
         <ProductTable
           products={filteredProducts}
-          onEdit={(product) => {
-            setSelectedProduct(product);
-            setOpen(true);
-          }}
+          onEdit={openEditModal}
           onDelete={handleDelete}
+          deletingId={deletingId}
         />
       )}
 
       <Modal
-        open={open}
-        title={selectedProduct ? "Modifier le produit" : "Ajouter un produit"}
-        onClose={handleCloseModal}
+        open={modalOpen}
+        title={
+          selectedProduct
+            ? "Modifier le produit"
+            : "Ajouter un produit"
+        }
+        onClose={closeModal}
       >
         <ProductForm
           product={selectedProduct}
+          categories={categories}
           onSubmit={handleSubmit}
-          onCancel={handleCloseModal}
+          onCancel={closeModal}
           loading={saving}
         />
       </Modal>

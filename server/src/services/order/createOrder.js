@@ -24,6 +24,8 @@ const {
   calculateTotals,
 } = require("./calculateTotals");
 
+const { createQuote } = require("../quote");
+
 const {
   generateOrderReference,
 } = require("../../utils/orderReference");
@@ -52,9 +54,7 @@ async function createOrder(userId, payload) {
 
   // 6. Transaction
   return prisma.$transaction(async (transaction) => {
-    // Réservation du stock
-    await reserveStock(transaction, orderItems);
-
+    
     // Référence de commande
     const reference =
       await generateOrderReference(transaction);

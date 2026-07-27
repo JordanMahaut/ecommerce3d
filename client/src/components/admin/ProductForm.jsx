@@ -18,12 +18,7 @@ const emptyForm = {
   isActive: true,
 };
 
-function ProductForm({
-  product = null,
-  onSubmit,
-  onCancel,
-  loading = false,
-}) {
+function ProductForm({ product = null, onSubmit, onCancel, loading = false }) {
   const [formData, setFormData] = useState(emptyForm);
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
@@ -43,8 +38,7 @@ function ProductForm({
         setCategories(
           data.filter(
             (category) =>
-              category.isActive ||
-              category.id === product?.categoryId,
+              category.isActive || category.id === product?.categoryId,
           ),
         );
       } catch (error) {
@@ -65,15 +59,10 @@ function ProductForm({
             name: product.name ?? "",
             slug: product.slug ?? "",
             description: product.description ?? "",
-            price: product.price != null
-              ? String(product.price)
-              : "",
-            stock: product.stock != null
-              ? String(product.stock)
-              : "",
-            categoryId: product.categoryId != null
-              ? String(product.categoryId)
-              : "",
+            price: product.price != null ? String(product.price) : "",
+            stock: product.stock != null ? String(product.stock) : "",
+            categoryId:
+              product.categoryId != null ? String(product.categoryId) : "",
             image: null,
             featured: Boolean(product.featured),
             isActive: product.isActive ?? true,
@@ -108,9 +97,7 @@ function ProductForm({
           URL.revokeObjectURL(currentPreview);
         }
 
-        return file
-          ? URL.createObjectURL(file)
-          : product?.image ?? null;
+        return file ? URL.createObjectURL(file) : (product?.image ?? null);
       });
 
       return;
@@ -133,20 +120,51 @@ function ProductForm({
   async function handleSubmit(event) {
     event.preventDefault();
 
+    const price = Number(formData.price);
+    const stock = Number(formData.stock);
+    const categoryId = Number(formData.categoryId);
+
+    if (!formData.name.trim()) {
+      return;
+    }
+
+    if (!Number.isFinite(price) || price <= 0) {
+      console.error("Prix invalide.");
+      return;
+    }
+
+    if (!Number.isInteger(stock) || stock < 0) {
+      console.error("Stock invalide.");
+      return;
+    }
+
+    if (!Number.isInteger(categoryId) || categoryId <= 0) {
+      console.error("Catégorie invalide.");
+      return;
+    }
+
     const payload = new FormData();
 
     payload.append("name", formData.name.trim());
-    payload.append("slug", String(formData.slug).trim());
+    payload.append("slug", formData.slug.trim());
     payload.append("description", formData.description.trim());
-    payload.append("price", formData.price);
-    payload.append("stock", formData.stock);
-    payload.append("categoryId", formData.categoryId);
-    payload.append("featured", String(formData.featured));
-    payload.append("isActive", String(formData.isActive));
+    payload.append("price", String(price));
+    payload.append("stock", String(stock));
+    payload.append("categoryId", String(categoryId));
 
-    if (formData.image) {
+    /*
+     * FormData envoie des chaînes.
+     * Le backend devra transformer "true" et "false".
+     */
+    payload.append("featured", formData.featured ? "true" : "false");
+
+    payload.append("isActive", formData.isActive ? "true" : "false");
+
+    if (formData.image instanceof File) {
       payload.append("image", formData.image);
     }
+
+    console.log("Produit envoyé :", Object.fromEntries(payload.entries()));
 
     await onSubmit(payload);
   }
@@ -201,9 +219,7 @@ function ProductForm({
         </select>
 
         {categoriesError && (
-          <p className="text-sm text-red-600">
-            {categoriesError}
-          </p>
+          <p className="text-sm text-red-600">{categoriesError}</p>
         )}
       </div>
 

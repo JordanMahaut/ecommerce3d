@@ -9,7 +9,7 @@ export async function getOrders() {
 }
 
 /**
- * Récupérer une commande
+ * Récupérer une commande par son identifiant
  */
 export async function getOrder(id) {
   const { data } = await api.get(`/orders/${id}`);
@@ -30,4 +30,15 @@ export async function createOrder(payload) {
 export async function cancelOrder(id) {
   const { data } = await api.patch(`/orders/${id}/cancel`);
   return data;
+}
+
+/**
+ * Télécharger la facture (prévu pour plus tard)
+ */
+export async function downloadInvoice(id) {
+  const response = await api.get(`/orders/${id}/invoice`, {
+    responseType: "blob",
+  });
+
+  return response.data;
 }
