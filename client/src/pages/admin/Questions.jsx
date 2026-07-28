@@ -6,28 +6,31 @@ import { Card, CardContent } from "@/components/ui/card";
 
 import QuestionForm from "@/components/admin/questions/QuestionForm";
 import QuestionTable from "@/components/admin/questions/QuestionTable";
+import DeleteQuestionDialog from "@/components/admin/questions/DeleteQuestionDialog";
 
 import { useQuestions } from "@/hooks/admin/useQuestions";
 import {
   useCreateQuestion,
   useUpdateQuestion,
+  useDeleteQuestion,
 } from "@/hooks/admin/useQuestionMutations";
 
 export default function Questions() {
   const [formOpen, setFormOpen] = useState(false);
   const [selectedQuestion, setSelectedQuestion] = useState(null);
 
-  const {
-  data: questions = [],
-  isLoading,
-  isError,
-  error,
-} = useQuestions();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [questionToDelete, setQuestionToDelete] = useState(null);
 
-console.log(error);
+  const {
+    data: questions = [],
+    isLoading,
+    isError,
+  } = useQuestions();
 
   const createMutation = useCreateQuestion();
   const updateMutation = useUpdateQuestion();
+  const deleteMutation = useDeleteQuestion();
 
   function handleCreate() {
     setSelectedQuestion(null);
@@ -40,7 +43,19 @@ console.log(error);
   }
 
   function handleDelete(question) {
-    console.log("Suppression à venir :", question);
+    setQuestionToDelete(question);
+    setDeleteOpen(true);
+  }
+
+  function confirmDelete() {
+    if (!questionToDelete) return;
+
+    deleteMutation.mutate(questionToDelete.id, {
+      onSuccess: () => {
+        setDeleteOpen(false);
+        setQuestionToDelete(null);
+      },
+    });
   }
 
   function handleSubmit(payload) {
@@ -121,6 +136,20 @@ console.log(error);
         question={selectedQuestion}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
+      />
+
+      <DeleteQuestionDialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          setDeleteOpen(open);
+
+          if (!open && !deleteMutation.isPending) {
+            setQuestionToDelete(null);
+          }
+        }}
+        question={questionToDelete}
+        onConfirm={confirmDelete}
+        isDeleting={deleteMutation.isPending}
       />
     </div>
   );

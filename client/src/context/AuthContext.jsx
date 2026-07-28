@@ -1,17 +1,29 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
 import * as authService from "../services/auth.service";
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   async function login(email, password) {
-    const data = await authService.login({ email, password });
+    const data = await authService.login({
+      email,
+      password,
+    });
+
+    if (!data.token || !data.user) {
+      throw new Error("Réponse de connexion invalide.");
+    }
 
     localStorage.setItem("token", data.token);
-
     setUser(data.user);
 
     return data.user;
@@ -26,19 +38,32 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem("token");
 
     if (!token) {
+      setUser(null);
       setLoading(false);
       return;
     }
 
     try {
-      const user = await authService.getMe();
+      const data = await authService.getMe();
 
-      setUser(user);
+      const authenticatedUser = data.user ?? data;
+
+      if (!authenticatedUser?.id) {
+        throw new Error("Utilisateur invalide.");
+      }
+
+      setUser(authenticatedUser);
     } catch (error) {
-      logout();
-    }
+      console.error(
+        "Erreur lors de la restauration de la session :",
+        error,
+      );
 
-    setLoading(false);
+      localStorage.removeItem("token");
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -52,6 +77,7 @@ export function AuthProvider({ children }) {
         loading,
         login,
         logout,
+        isAuthenticated: Boolean(user),
       }}
     >
       {children}
@@ -60,5 +86,13 @@ export function AuthProvider({ children }) {
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error(
+      "useAuth doit être utilisé dans un AuthProvider.",
+    );
+  }
+
+  return context;
 }
