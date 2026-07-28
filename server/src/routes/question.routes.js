@@ -4,6 +4,7 @@ const router = express.Router();
 
 const {
   getAllQuestions,
+  getQuestionById,
   createNewQuestion,
   updateExistingQuestion,
   deleteExistingQuestion,
@@ -13,15 +14,17 @@ const {
 const auth = require("../middleware/auth.middleware");
 const admin = require("../middleware/admin.middleware");
 
-
 router.use(auth);
 router.use(admin);
 
 router.get("/", getAllQuestions);
-router.post("/", createNewQuestion);
-router.put("/:id", updateExistingQuestion);
-router.delete("/:id", deleteExistingQuestion);
 
 router.patch("/reorder", reorderExistingQuestions);
+
+router.post("/", createNewQuestion);
+
+router.get("/:id", getQuestionById);
+router.put("/:id", updateExistingQuestion);
+router.delete("/:id", deleteExistingQuestion);
 
 module.exports = router;

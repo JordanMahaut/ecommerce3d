@@ -485,3 +485,32 @@ model Notification {
   @@index([isRead, createdAt])
   @@index([type])
 }
+
+model Question {
+  id          Int          @id @default(autoincrement())
+  label       String
+  description String?
+  placeholder String?
+  type        QuestionType
+  required    Boolean      @default(false)
+  active      Boolean      @default(true)
+  position    Int
+  options     Json?
+  validation  Json?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+enum QuestionType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  EMAIL
+  PHONE
+  SELECT
+  RADIO
+  CHECKBOX
+  FILE
+  COLOR
+  DIMENSIONS
+}

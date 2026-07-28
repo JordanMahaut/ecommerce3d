@@ -8,6 +8,7 @@ import {
 
 import { AuthProvider } from "./context/AuthContext";
 import { CartProvider } from "./context/CartContext";
+import { Toaster } from "@/components/ui/sonner";
 import router from "./router";
 
 import "./index.css";
@@ -23,13 +24,12 @@ const queryClient = new QueryClient({
 });
 
 createRoot(document.getElementById("root")).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <CartProvider>
-          <RouterProvider router={router} />
-        </CartProvider>
-      </AuthProvider>
-    </QueryClientProvider>
-  </StrictMode>,
+  <QueryClientProvider client={queryClient}>
+  <AuthProvider>
+    <CartProvider>
+      <RouterProvider router={router} />
+      <Toaster />
+    </CartProvider>
+  </AuthProvider>
+</QueryClientProvider>
 );

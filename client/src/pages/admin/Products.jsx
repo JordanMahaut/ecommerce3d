@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import Button from "../../components/ui/Button";
 import Spinner from "../../components/ui/Spinner";
@@ -10,99 +11,76 @@ import ProductStats from "../../components/admin/products/ProductStats";
 import ProductFilters from "../../components/admin/products/ProductFilters";
 import ProductTable from "../../components/admin/products/ProductTable";
 
-import * as productService from "../../services/product.service";
+import useProducts from "../../hooks/useProducts";
+import useCreateProduct from "../../hooks/useCreateProduct";
+import useUpdateProduct from "../../hooks/useUpdateProduct";
+import useDeleteProduct from "../../hooks/useDeleteProduct";
+
+import { useQuery } from "@tanstack/react-query";
 import * as categoryService from "../../services/category.service";
 
 import { normalizeProductsResponse } from "../../utils/formatters";
 
 function Products() {
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [stockFilter, setStockFilter] = useState("");
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
-
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
 
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const {
+    data: productsResponse,
+    isLoading: productsLoading,
+    isError: productsError,
+    error: productsRequestError,
+  } = useProducts();
 
-  async function loadProducts() {
-    try {
-      const data = await productService.getProducts();
+  const {
+    data: categoriesResponse,
+    isLoading: categoriesLoading,
+  } = useQuery({
+    queryKey: ["categories"],
+    queryFn: categoryService.getCategories,
+  });
 
-      setProducts(normalizeProductsResponse(data));
-    } catch (requestError) {
-      console.error(
-        "Erreur chargement produits :",
-        requestError.response?.data || requestError,
-      );
+  const createMutation = useCreateProduct();
+  const updateMutation = useUpdateProduct();
+  const deleteMutation = useDeleteProduct();
 
-      setProducts([]);
+  const products = useMemo(
+    () => normalizeProductsResponse(productsResponse),
+    [productsResponse],
+  );
 
-      setError(
-        requestError.response?.data?.message ||
-          "Impossible de charger les produits.",
-      );
+  const categories = useMemo(() => {
+    if (Array.isArray(categoriesResponse)) {
+      return categoriesResponse;
     }
-  }
 
-  async function loadCategories() {
-    try {
-      const data = await categoryService.getCategories();
-
-      const categoryList = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.categories)
-          ? data.categories
-          : Array.isArray(data?.data)
-            ? data.data
-            : [];
-
-      setCategories(categoryList);
-    } catch (requestError) {
-      console.error(
-        "Erreur chargement catégories :",
-        requestError.response?.data || requestError,
-      );
-
-      setCategories([]);
+    if (Array.isArray(categoriesResponse?.categories)) {
+      return categoriesResponse.categories;
     }
-  }
 
-  async function loadPageData() {
-    try {
-      setLoading(true);
-      setError("");
-
-      await Promise.all([loadProducts(), loadCategories()]);
-    } finally {
-      setLoading(false);
+    if (Array.isArray(categoriesResponse?.data)) {
+      return categoriesResponse.data;
     }
-  }
 
-  useEffect(() => {
-    loadPageData();
-  }, []);
+    return [];
+  }, [categoriesResponse]);
+
+  const loading = productsLoading || categoriesLoading;
+  const saving =
+    createMutation.isPending || updateMutation.isPending;
 
   function openCreateModal() {
     setSelectedProduct(null);
     setModalOpen(true);
-    setMessage("");
-    setError("");
   }
 
   function openEditModal(product) {
     setSelectedProduct(product);
     setModalOpen(true);
-    setMessage("");
-    setError("");
   }
 
   function closeModal() {
@@ -114,49 +92,33 @@ function Products() {
     setSelectedProduct(null);
   }
 
-  async function handleSubmit(formData) {
-    try {
-      setSaving(true);
-      setMessage("");
-      setError("");
-
-      if (selectedProduct) {
-        await productService.updateProduct(
-          selectedProduct.id,
+  function handleSubmit(formData) {
+    if (selectedProduct) {
+      updateMutation.mutate(
+        {
+          id: selectedProduct.id,
           formData,
-        );
-
-        setMessage("Le produit a été modifié avec succès.");
-      } else {
-        await productService.createProduct(formData);
-
-        setMessage("Le produit a été ajouté avec succès.");
-      }
-
-      await loadProducts();
-
-      setModalOpen(false);
-      setSelectedProduct(null);
-    } catch (requestError) {
-      const response = requestError.response?.data;
-
-      console.error(
-        selectedProduct
-          ? "Erreur modification produit :"
-          : "Erreur création produit :",
-        response || requestError,
+        },
+        {
+          onSuccess: () => {
+            setModalOpen(false);
+            setSelectedProduct(null);
+          },
+        },
       );
 
-      setError(
-        response?.message ||
-          "Impossible d'enregistrer le produit.",
-      );
-    } finally {
-      setSaving(false);
+      return;
     }
+
+    createMutation.mutate(formData, {
+      onSuccess: () => {
+        setModalOpen(false);
+        setSelectedProduct(null);
+      },
+    });
   }
 
-  async function handleDelete(product) {
+  function handleDelete(product) {
     const confirmed = window.confirm(
       `Voulez-vous vraiment supprimer « ${product.name} » ?`,
     );
@@ -165,38 +127,27 @@ function Products() {
       return;
     }
 
-    try {
-      setDeletingId(product.id);
-      setMessage("");
-      setError("");
-
-      await productService.deleteProduct(product.id);
-
-      setMessage("Le produit a été supprimé avec succès.");
-
-      await loadProducts();
-    } catch (requestError) {
-      console.error(
-        "Erreur suppression produit :",
-        requestError.response?.data || requestError,
-      );
-
-      setError(
-        requestError.response?.data?.message ||
-          "Impossible de supprimer le produit.",
-      );
-    } finally {
-      setDeletingId(null);
-    }
+    deleteMutation.mutate(product.id, {
+      onError: (error) => {
+        toast.error(
+          error.response?.data?.message ||
+            "Impossible de supprimer le produit.",
+        );
+      },
+    });
   }
 
   const filteredProducts = useMemo(() => {
-    const safeProducts = Array.isArray(products) ? products : [];
     const normalizedSearch = search.trim().toLowerCase();
 
-    return safeProducts.filter((product) => {
-      const productName = String(product.name || "").toLowerCase();
-      const productSlug = String(product.slug || "").toLowerCase();
+    return products.filter((product) => {
+      const productName = String(
+        product.name || "",
+      ).toLowerCase();
+
+      const productSlug = String(
+        product.slug || "",
+      ).toLowerCase();
 
       const matchesSearch =
         normalizedSearch.length === 0 ||
@@ -231,6 +182,15 @@ function Products() {
     });
   }, [products, search, categoryFilter, stockFilter]);
 
+  if (productsError) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+        {productsRequestError?.response?.data?.message ||
+          "Impossible de charger les produits."}
+      </div>
+    );
+  }
+
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -249,18 +209,6 @@ function Products() {
           + Ajouter un produit
         </Button>
       </div>
-
-      {message && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-700">
-          {message}
-        </div>
-      )}
-
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
-          {error}
-        </div>
-      )}
 
       <ProductStats products={products} />
 
@@ -296,7 +244,11 @@ function Products() {
           products={filteredProducts}
           onEdit={openEditModal}
           onDelete={handleDelete}
-          deletingId={deletingId}
+          deletingId={
+            deleteMutation.isPending
+              ? deleteMutation.variables
+              : null
+          }
         />
       )}
 

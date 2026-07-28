@@ -57,9 +57,38 @@ const reorderExistingQuestions = asyncHandler(async (req, res) => {
   });
 });
 
+async function getQuestionById(req, res) {
+  try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({
+        message: "Identifiant de question invalide.",
+      });
+    }
+
+    const question = await questionService.getQuestionById(id);
+
+    if (!question) {
+      return res.status(404).json({
+        message: "Question introuvable.",
+      });
+    }
+
+    return res.status(200).json(question);
+  } catch (error) {
+    console.error("Erreur récupération question :", error);
+
+    return res.status(500).json({
+      message: "Impossible de récupérer la question.",
+    });
+  }
+}
+
 module.exports = {
   getAllQuestions,
   createNewQuestion,
+  getQuestionById,
   updateExistingQuestion,
   deleteExistingQuestion,
   reorderExistingQuestions,
