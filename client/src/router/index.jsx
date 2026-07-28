@@ -25,6 +25,7 @@ import Users from "../pages/admin/Users";
 import Quotes from "../pages/admin/Quotes";
 import OrderDetails from "../pages/OrderDetails";
 import OrdersShop from "../pages/Orders";
+import Questions from "../pages/admin/Questions";
 
 const router = createBrowserRouter([
   {
@@ -104,6 +105,10 @@ const router = createBrowserRouter([
           {
             path: "categories",
             element: <Categories />,
+          },
+          {
+            path: "questions",
+            element: <Questions />,
           },
           {
             path: "orders",
